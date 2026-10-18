@@ -5,3 +5,10 @@ compatibility_date = "2024-01-01"
 # Cron: tiap 1 menit proses notification queue
 [triggers]
 crons = ["* * * * *"]
+
+# Variables non-secret (disimpan di repo, aman karena bukan rahasia)
+[vars]
+FIREBASE_PROJECT_ID = "mypresence-prod"
+FIREBASE_URL = "https://mypresence-prod-default-rtdb.asia-southeast1.firebasedatabase.app"
+FIREBASE_CLIENT_EMAIL = "mypresence-fcm-worker@mypresence-prod.iam.gserviceaccount.com"
+# FIREBASE_PRIVATE_KEY tetap sebagai Secret di Dashboard (jangan taruh di sini!)
