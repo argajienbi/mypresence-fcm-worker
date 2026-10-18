@@ -19,7 +19,7 @@
 
 // ============ KONFIGURASI ============
 // Kredensial dibaca dari Secrets (Settings → Variables and Secrets):
-//   FIREBASE_PROJECT_ID, FIREBASE_DATABASE_URL,
+//   FIREBASE_PROJECT_ID, FIREBASE_URL,
 //   FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
 // ============ AKHIR KONFIGURASI ============
 
@@ -97,14 +97,14 @@ async function getAccessToken(env) {
 // ---------- RTDB helpers ----------
 
 async function rtdbGet(env, token, path) {
-  const url = `${env.FIREBASE_DATABASE_URL}/${path}.json?access_token=${token}`;
+  const url = `${env.FIREBASE_URL}/${path}.json?access_token=${token}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`RTDB GET ${path}: HTTP ${res.status}`);
   return res.json();
 }
 
 async function rtdbPatch(env, token, path, data) {
-  const url = `${env.FIREBASE_DATABASE_URL}/${path}.json?access_token=${token}`;
+  const url = `${env.FIREBASE_URL}/${path}.json?access_token=${token}`;
   const res = await fetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
