@@ -1,0 +1,7 @@
+name = "mypresence-fcm-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Cron: tiap 1 menit proses notification queue
+[triggers]
+crons = ["* * * * *"]
