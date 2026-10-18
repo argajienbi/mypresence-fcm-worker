@@ -18,7 +18,6 @@
  */
 
 // ============ KONFIGURASI ============
-// Redeploy trigger
 // Kredensial dibaca dari Secrets (Settings → Variables and Secrets):
 //   FIREBASE_PROJECT_ID, FIREBASE_URL,
 //   FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
@@ -50,6 +49,8 @@ async function importPrivateKey(env) {
     divBy4: pemBody.length % 4 === 0,
     first20: pemBody.substring(0, 20),
     last20: pemBody.substring(pemBody.length - 20),
+    email: env.FIREBASE_CLIENT_EMAIL,
+    emailLen: env.FIREBASE_CLIENT_EMAIL ? env.FIREBASE_CLIENT_EMAIL.length : 0,
   };
   const binary = Uint8Array.from(atob(pemBody), (ch) => ch.charCodeAt(0));
   return crypto.subtle.importKey(
