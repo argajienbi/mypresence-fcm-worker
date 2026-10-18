@@ -263,12 +263,19 @@ export default {
     const url = new URL(request.url);
     if (url.searchParams.get("test") === "1") {
       try {
+        // Diagnostik: cek secrets tersedia
+        const envKeys = Object.keys(env || {});
+        const hasKey = !!env.FIREBASE_PRIVATE_KEY;
+        const keyLen = hasKey ? env.FIREBASE_PRIVATE_KEY.length : 0;
         const summary = await processQueue(env);
-        return new Response(JSON.stringify(summary, null, 2), {
+        return new Response(JSON.stringify({ envKeys, hasKey, keyLen, ...summary }, null, 2), {
           headers: { "Content-Type": "application/json" },
         });
       } catch (e) {
-        return new Response(`Error: ${e.message}`, { status: 500 });
+        return new Response(JSON.stringify({ error: e.message, stack: e.stack }, null, 2), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
       }
     }
     return new Response("MyPresence FCM Worker aktif. Tambahkan ?test=1 untuk proses manual.", { headers: { "Content-Type": "text/plain" } });
