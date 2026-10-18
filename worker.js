@@ -42,6 +42,14 @@ async function importPrivateKey(env) {
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
     .replace(/[^A-Za-z0-9+/=]/g, "");
+  // Diagnostik: simpan info untuk error reporting
+  globalThis._keyDebug = {
+    rawLen: pem.length,
+    cleanLen: pemBody.length,
+    divBy4: pemBody.length % 4 === 0,
+    first20: pemBody.substring(0, 20),
+    last20: pemBody.substring(pemBody.length - 20),
+  };
   const binary = Uint8Array.from(atob(pemBody), (ch) => ch.charCodeAt(0));
   return crypto.subtle.importKey(
     "pkcs8",
@@ -272,7 +280,7 @@ export default {
           headers: { "Content-Type": "application/json" },
         });
       } catch (e) {
-        return new Response(JSON.stringify({ error: e.message, stack: e.stack }, null, 2), {
+        return new Response(JSON.stringify({ error: e.message, stack: e.stack, keyDebug: globalThis._keyDebug }, null, 2), {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });
