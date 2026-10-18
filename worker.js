@@ -18,6 +18,7 @@
  */
 
 // ============ KONFIGURASI ============
+// Redeploy trigger
 // Kredensial dibaca dari Secrets (Settings → Variables and Secrets):
 //   FIREBASE_PROJECT_ID, FIREBASE_URL,
 //   FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
