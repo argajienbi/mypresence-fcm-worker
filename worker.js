@@ -96,14 +96,14 @@ async function getAccessToken(env) {
 
 // ---------- RTDB helpers ----------
 
-async function rtdbGet(token, path) {
+async function rtdbGet(env, token, path) {
   const url = `${env.FIREBASE_DATABASE_URL}/${path}.json?access_token=${token}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`RTDB GET ${path}: HTTP ${res.status}`);
   return res.json();
 }
 
-async function rtdbPatch(token, path, data) {
+async function rtdbPatch(env, token, path, data) {
   const url = `${env.FIREBASE_DATABASE_URL}/${path}.json?access_token=${token}`;
   const res = await fetch(url, {
     method: "PATCH",
@@ -145,10 +145,10 @@ async function processQueue(env) {
   const summary = { checked: 0, sent: 0, failed: 0, skipped: 0 };
 
   // Ambil daftar companies
-  const companies = (await rtdbGet(oauthToken, "companies")) || {};
+  const companies = (await rtdbGet(env, oauthToken, "companies")) || {};
 
   for (const companyId of Object.keys(companies)) {
-    const queue = (await rtdbGet(oauthToken, `companies/${companyId}/notification_queue`)) || {};
+    const queue = (await rtdbGet(env, oauthToken, `companies/${companyId}/notification_queue`)) || {};
 
     for (const [queueId, item] of Object.entries(queue)) {
       if (!item || typeof item !== "object") continue;
@@ -164,7 +164,7 @@ async function processQueue(env) {
       const body = String(item.body || item.message || "Ada notifikasi baru.").trim();
 
       if (!uid) {
-        await rtdbPatch(oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "failed",
           error: "uid kosong",
           failed_at: Date.now(),
@@ -174,13 +174,13 @@ async function processQueue(env) {
       }
 
       // Ambil token aktif user
-      const tokensNode = (await rtdbGet(oauthToken, `companies/${companyId}/users/${uid}/fcm_tokens`)) || {};
+      const tokensNode = (await rtdbGet(env, oauthToken, `companies/${companyId}/users/${uid}/fcm_tokens`)) || {};
       const activeTokens = Object.values(tokensNode)
         .filter((t) => t && t.active !== false && t.token)
         .map((t) => t.token);
 
       if (activeTokens.length === 0) {
-        await rtdbPatch(oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "failed",
           error: "tidak ada token FCM aktif",
           token_count: 0,
@@ -221,13 +221,13 @@ async function processQueue(env) {
       for (const badToken of invalidTokens) {
         const tokenId = [...Object.entries(tokensNode)].find(([, v]) => v && v.token === badToken)?.[0];
         if (tokenId) {
-          await rtdbPatch(oauthToken, `companies/${companyId}/users/${uid}/fcm_tokens/${tokenId}`, { active: false, updated_at: Date.now() }).catch(() => {});
+          await rtdbPatch(env, oauthToken, `companies/${companyId}/users/${uid}/fcm_tokens/${tokenId}`, { active: false, updated_at: Date.now() }).catch(() => {});
         }
       }
 
       const nowMs = Date.now();
       if (successCount > 0) {
-        await rtdbPatch(oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "sent",
           token_count: activeTokens.length,
           success_count: successCount,
@@ -239,7 +239,7 @@ async function processQueue(env) {
       } else {
         const retryCount = (item.retry_count || 0) + 1;
         const maxRetry = 3;
-        await rtdbPatch(oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, oauthToken, `companies/${companyId}/notification_queue/${queueId}`, {
           status: retryCount >= maxRetry ? "failed" : "pending",
           retry_count: retryCount,
           token_count: activeTokens.length,
