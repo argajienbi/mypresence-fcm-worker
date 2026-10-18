@@ -39,9 +39,9 @@ async function importPrivateKey(env) {
   const pem = env.FIREBASE_PRIVATE_KEY;
   const pemBody = pem
     .replace(/\\n/g, "")
-    .split("-----BEGIN PRIVATE KEY-----").join("")
-    .split("-----END PRIVATE KEY-----").join("")
-    .replace(/\s+/g, "");
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/[^A-Za-z0-9+/=]/g, "");
   const binary = Uint8Array.from(atob(pemBody), (ch) => ch.charCodeAt(0));
   return crypto.subtle.importKey(
     "pkcs8",
