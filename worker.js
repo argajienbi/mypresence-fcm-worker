@@ -38,6 +38,7 @@ function base64UrlEncode(str) {
 async function importPrivateKey(env) {
   const pem = env.FIREBASE_PRIVATE_KEY;
   const pemBody = pem
+    .replace(/\\n/g, "")
     .split("-----BEGIN PRIVATE KEY-----").join("")
     .split("-----END PRIVATE KEY-----").join("")
     .replace(/\s+/g, "");
