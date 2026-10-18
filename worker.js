@@ -42,16 +42,6 @@ async function importPrivateKey(env) {
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
     .replace(/[^A-Za-z0-9+/=]/g, "");
-  // Diagnostik: simpan info untuk error reporting
-  globalThis._keyDebug = {
-    rawLen: pem.length,
-    cleanLen: pemBody.length,
-    divBy4: pemBody.length % 4 === 0,
-    first20: pemBody.substring(0, 20),
-    last20: pemBody.substring(pemBody.length - 20),
-    email: env.FIREBASE_CLIENT_EMAIL,
-    emailLen: env.FIREBASE_CLIENT_EMAIL ? env.FIREBASE_CLIENT_EMAIL.length : 0,
-  };
   const binary = Uint8Array.from(atob(pemBody), (ch) => ch.charCodeAt(0));
   return crypto.subtle.importKey(
     "pkcs8",
@@ -278,16 +268,12 @@ export default {
     const url = new URL(request.url);
     if (url.searchParams.get("test") === "1") {
       try {
-        // Diagnostik: cek secrets tersedia
-        const envKeys = Object.keys(env || {});
-        const hasKey = !!env.FIREBASE_PRIVATE_KEY;
-        const keyLen = hasKey ? env.FIREBASE_PRIVATE_KEY.length : 0;
         const summary = await processQueue(env);
-        return new Response(JSON.stringify({ envKeys, hasKey, keyLen, ...summary }, null, 2), {
+        return new Response(JSON.stringify(summary, null, 2), {
           headers: { "Content-Type": "application/json" },
         });
       } catch (e) {
-        return new Response(JSON.stringify({ error: e.message, stack: e.stack, keyDebug: globalThis._keyDebug }, null, 2), {
+        return new Response(JSON.stringify({ error: e.message }, null, 2), {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });
