@@ -79,7 +79,7 @@ async function getAccessToken(env) {
   for (let i = 0; i < sigBytes.length; i += 0x8000) {
     b64 += String.fromCharCode.apply(null, sigBytes.subarray(i, i + 0x8000));
   }
-  const signature = b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const signature = btoa(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
