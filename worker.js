@@ -191,10 +191,11 @@ async function processQueue(env) {
       let successCount = 0;
       let failedCount = 0;
       const invalidTokens = [];
+      let lastFcmError = "";
 
       for (const fcmToken of activeTokens) {
         try {
-          const { ok, result } = await sendFcm(env, oauthToken, fcmToken, title, body, {
+          const { ok, result, status } = await sendFcm(env, oauthToken, fcmToken, title, body, {
             type: item.type || "info",
             ref_type: item.ref_type || "",
             ref_id: item.ref_id || "",
@@ -204,13 +205,15 @@ async function processQueue(env) {
             successCount++;
           } else {
             failedCount++;
-            const errCode = result?.error?.details?.[0]?.errorCode || result?.error?.message || "";
+            const errCode = result?.error?.details?.[0]?.errorCode || result?.error?.message || `HTTP ${status}`;
+            lastFcmError = `HTTP ${status}: ${errCode} | ${JSON.stringify(result?.error || {}).slice(0, 300)}`;
             if (errCode.includes("UNREGISTERED") || errCode.includes("INVALID_ARGUMENT")) {
               invalidTokens.push(fcmToken);
             }
           }
         } catch (e) {
           failedCount++;
+          lastFcmError = `Exception: ${e.message}`.slice(0, 300);
         }
       }
 
@@ -242,7 +245,7 @@ async function processQueue(env) {
           token_count: activeTokens.length,
           success_count: 0,
           failed_count: failedCount,
-          error: "semua token gagal dikirim",
+          error: lastFcmError || "semua token gagal dikirim",
           failed_at: retryCount >= maxRetry ? nowMs : item.failed_at || null,
         });
         summary.failed++;
