@@ -97,42 +97,21 @@ async function getAccessToken(env) {
 }
 
 // ---------- RTDB helpers ----------
-// RTDB memakai Firebase Custom Token (JWT) via ?auth=, bukan OAuth access_token.
-// Custom token dibuat langsung dari service account key.
+// RTDB memakai Database Secret (legacy) via ?auth=.
+// Secret disimpan sebagai Cloudflare Secret FIREBASE_DATABASE_SECRET.
+// (Custom token via service account sudah dicoba berjam-jam: token diterima
+//  tapi auth.uid tidak ter-populate di rules. Database secret bypass rules
+//  dan adalah cara standar untuk backend service.)
 
-async function getRtdbAuthToken(env) {
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claim = base64UrlEncode(
-    JSON.stringify({
-      iss: env.FIREBASE_CLIENT_EMAIL,
-      sub: env.FIREBASE_CLIENT_EMAIL,
-      aud: "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
-      iat: now,
-      exp: now + 3600,
-      uid: "fcm-worker",
-    }),
-  );
-  const key = await importPrivateKey(env);
-  const sigBuffer = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claim}`));
-  const sigBytes = new Uint8Array(sigBuffer);
-  let b64 = "";
-  for (let i = 0; i < sigBytes.length; i += 0x8000) {
-    b64 += String.fromCharCode.apply(null, sigBytes.subarray(i, i + 0x8000));
-  }
-  const signature = btoa(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `${header}.${claim}.${signature}`;
-}
-
-async function rtdbGet(env, token, path) {
-  const url = `${env.FIREBASE_URL}/${path}.json?auth=${token}`;
+async function rtdbGet(env, path) {
+  const url = `${env.FIREBASE_URL}/${path}.json?auth=${env.FIREBASE_DATABASE_SECRET}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`RTDB GET ${path}: HTTP ${res.status}`);
   return res.json();
 }
 
-async function rtdbPatch(env, token, path, data) {
-  const url = `${env.FIREBASE_URL}/${path}.json?auth=${token}`;
+async function rtdbPatch(env, path, data) {
+  const url = `${env.FIREBASE_URL}/${path}.json?auth=${env.FIREBASE_DATABASE_SECRET}`;
   const res = await fetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -170,14 +149,13 @@ async function sendFcm(env, oauthToken, fcmToken, title, body, data = {}) {
 
 async function processQueue(env) {
   const oauthToken = await getAccessToken(env); // untuk FCM
-  const rtdbToken = await getRtdbAuthToken(env); // untuk RTDB (custom token)
   const summary = { checked: 0, sent: 0, failed: 0, skipped: 0 };
 
   // Ambil daftar companies
-  const companies = (await rtdbGet(env, rtdbToken, "companies")) || {};
+  const companies = (await rtdbGet(env, "companies")) || {};
 
   for (const companyId of Object.keys(companies)) {
-    const queue = (await rtdbGet(env, rtdbToken, `companies/${companyId}/notification_queue`)) || {};
+    const queue = (await rtdbGet(env, `companies/${companyId}/notification_queue`)) || {};
 
     for (const [queueId, item] of Object.entries(queue)) {
       if (!item || typeof item !== "object") continue;
@@ -193,7 +171,7 @@ async function processQueue(env) {
       const body = String(item.body || item.message || "Ada notifikasi baru.").trim();
 
       if (!uid) {
-        await rtdbPatch(env, rtdbToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "failed",
           error: "uid kosong",
           failed_at: Date.now(),
@@ -203,13 +181,13 @@ async function processQueue(env) {
       }
 
       // Ambil token aktif user
-      const tokensNode = (await rtdbGet(env, rtdbToken, `companies/${companyId}/users/${uid}/fcm_tokens`)) || {};
+      const tokensNode = (await rtdbGet(env, `companies/${companyId}/users/${uid}/fcm_tokens`)) || {};
       const activeTokens = Object.values(tokensNode)
         .filter((t) => t && t.active !== false && t.token)
         .map((t) => t.token);
 
       if (activeTokens.length === 0) {
-        await rtdbPatch(env, rtdbToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "failed",
           error: "tidak ada token FCM aktif",
           token_count: 0,
@@ -250,13 +228,13 @@ async function processQueue(env) {
       for (const badToken of invalidTokens) {
         const tokenId = [...Object.entries(tokensNode)].find(([, v]) => v && v.token === badToken)?.[0];
         if (tokenId) {
-          await rtdbPatch(env, rtdbToken, `companies/${companyId}/users/${uid}/fcm_tokens/${tokenId}`, { active: false, updated_at: Date.now() }).catch(() => {});
+          await rtdbPatch(env, `companies/${companyId}/users/${uid}/fcm_tokens/${tokenId}`, { active: false, updated_at: Date.now() }).catch(() => {});
         }
       }
 
       const nowMs = Date.now();
       if (successCount > 0) {
-        await rtdbPatch(env, rtdbToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, `companies/${companyId}/notification_queue/${queueId}`, {
           status: "sent",
           token_count: activeTokens.length,
           success_count: successCount,
@@ -268,7 +246,7 @@ async function processQueue(env) {
       } else {
         const retryCount = (item.retry_count || 0) + 1;
         const maxRetry = 3;
-        await rtdbPatch(env, rtdbToken, `companies/${companyId}/notification_queue/${queueId}`, {
+        await rtdbPatch(env, `companies/${companyId}/notification_queue/${queueId}`, {
           status: retryCount >= maxRetry ? "failed" : "pending",
           retry_count: retryCount,
           token_count: activeTokens.length,
